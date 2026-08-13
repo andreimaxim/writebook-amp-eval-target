@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Writebook uses SQLite and has no long-lived service to repair on resume.
+exit 0
