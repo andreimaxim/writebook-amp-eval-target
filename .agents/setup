@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The benchmark's original sandbox uses /app, and one infrastructure task
+# intentionally refers to that absolute path.
+if [[ ! -e /app ]]; then
+  sudo ln -s "$repo_root" /app
+elif [[ "$(readlink -f /app)" != "$repo_root" ]]; then
+  echo "/app exists but does not point to $repo_root" >&2
+  exit 1
+fi
+
+packages=(
+  build-essential
+  ca-certificates
+  curl
+  git
+  libgmp-dev
+  libssl-dev
+  libvips
+  libyaml-dev
+  pkg-config
+  rustc
+  zlib1g-dev
+)
+
+missing=()
+for package in "${packages[@]}"; do
+  if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'ok installed'; then
+    missing+=("$package")
+  fi
+done
+
+if (( ${#missing[@]} )); then
+  echo "Installing system packages: ${missing[*]}"
+  sudo apt-get update -qq
+  sudo apt-get install --no-install-recommends -y "${missing[@]}"
+fi
+
+if [[ ! -x "$HOME/.local/bin/mise" ]]; then
+  echo "Installing mise..."
+  curl -fsSL https://mise.run | sh
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+mise trust --yes "$repo_root/mise.toml"
+
+echo "Installing Ruby..."
+mise install --yes --cd "$repo_root"
+
+profile_marker="# Writebook orb toolchain"
+touch "$HOME/.bash_profile"
+if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile"; then
+  cat >> "$HOME/.bash_profile" <<'EOF'
+
+# Writebook orb toolchain
+if [[ -x "$HOME/.local/bin/mise" ]]; then
+  eval "$("$HOME/.local/bin/mise" activate bash)"
+fi
+EOF
+fi
+
+cd "$repo_root"
+echo "Installing gems..."
+mise exec -- gem install bundler -v 2.5.18 --no-document
+mise exec -- bundle _2.5.18_ install
+
+echo "Preparing the test database..."
+rm -f storage/db/test.sqlite3 storage/db/test.sqlite3-*
+mise exec -- env RAILS_ENV=test bin/rails db:prepare
+rm -f log/*.log tmp/local_secret.txt
+
+amp_config_dir="$HOME/.config/amp"
+mkdir -p "$amp_config_dir"
+agents_file="$amp_config_dir/AGENTS.md"
+agents_marker="# Inside the Writebook orb"
+touch "$agents_file"
+if ! grep -Fqx "$agents_marker" "$agents_file"; then
+  cat >> "$agents_file" <<'EOF'
+
+# Inside the Writebook orb
+
+- Ruby 3.4.7 and the locked bundle are installed by `.agents/setup`.
+- Run the application test suite with `bin/rails test`.
+- Work directly in the repository and verify changes before finishing.
+EOF
+fi
+
+echo "Orb setup complete."
