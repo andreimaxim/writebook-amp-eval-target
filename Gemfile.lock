@@ -117,7 +117,7 @@ GEM
     bcrypt (3.1.22)
     bigdecimal (4.1.2)
     bindex (0.8.1)
-    brakeman (8.0.5)
+    brakeman (8.0.6)
       racc
     builder (3.3.0)
     capybara (3.40.0)
@@ -319,9 +319,9 @@ GEM
       ffi (~> 1.12)
       logger
     ruby2_keywords (0.0.5)
-    rubyzip (3.4.1)
+    rubyzip (3.6.0)
     securerandom (0.4.1)
-    selenium-webdriver (4.45.0)
+    selenium-webdriver (4.49.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
